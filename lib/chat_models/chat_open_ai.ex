@@ -832,10 +832,25 @@ defmodule LangChain.ChatModels.ChatOpenAI do
 
   def do_process_response(_model, %{"choices" => []}), do: :skip
 
-  def do_process_response(model, %{"choices" => choices} = _data) when is_list(choices) do
+  def do_process_response(model, %{"choices" => choices} = data) when is_list(choices) do
     # process each response individually. Return a list of all processed choices
+
+    usage = case get_token_usage(data) do
+      nil -> nil
+      val -> Map.from_struct(val)
+    end
+
     for choice <- choices do
-      do_process_response(model, choice)
+      message = do_process_response(model, choice)
+
+      updated_metadata =
+        case {message.metadata, usage} do
+          {metadata, nil} -> metadata
+          {nil, usage} -> %{usage: usage}
+          {metadata, usage} -> Map.put(metadata, :usage, usage)
+        end
+
+      Map.put(message, :metadata, updated_metadata)
     end
   end
 
